@@ -1,0 +1,49 @@
+{
+  "bookings": [
+    {
+      "id": 1,
+      "userId": 2,
+      "roomName": "Большая комната на 20 мест",
+      "date": "2026-05-01",
+      "time": "20:00",
+      "duration": "6",
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "roomName": "Маленькая комната на 5 мест",
+      "date": "2026-05-02",
+      "time": "10:00",
+      "duration": "2",
+      "status": "active"
+    },
+    {
+      "id": 3,
+      "userId": 2,
+      "roomName": "Конференц-зал на 30 мест",
+      "date": "2026-05-09",
+      "time": "16:00",
+      "duration": "5",
+      "status": "active"
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "phone": "+77751331727",
+      "password": "Admin123",
+      "role": "admin"
+    },
+    {
+      "id": 2,
+      "username": "User",
+      "phone": "+77751331728",
+      "password": "User123",
+      "role": "user"
+    }
+  ],
+  "bookingId": 4,
+  "userId": 3
+}

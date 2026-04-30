@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
 const cors = require('cors');
+const fs = require('fs');
 
 app.use(express.json());
 app.use(cors());
@@ -16,51 +17,77 @@ let users = [];
 let bookingId = 1;
 let userId = 1;
 
-users.push({
-    id: userId++,
-    username: "admin",
-    phone: "+77751331727",
-    password: "Admin123",
-    role: "admin"
-});
+const DATA_FILE = 'data.json';
+
+if (fs.existsSync(DATA_FILE)) {
+    const data = JSON.parse(fs.readFileSync(DATA_FILE));
+
+    bookings = data.bookings || [];
+    users = data.users || [];
+    bookingId = data.bookingId || 1;
+    userId = data.userId || 1;
+}
+
+function saveData() {
+    fs.writeFileSync(
+        DATA_FILE,
+        JSON.stringify({
+            bookings,
+            users,
+            bookingId,
+            userId
+        }, null, 2)
+    );
+}
+
+if (!users.find(u => u.role === "admin")) {
+    users.push({
+        id: userId++,
+        username: "admin",
+        phone: "+77751331727",
+        password: "Admin123",
+        role: "admin"
+    });
+
+    saveData();
+}
 
 app.get('/', (req, res) => {
     res.send('Server is working');
 });
 
 //registr
-//registr
 app.post('/register', (req, res) => {
     const { username, phone, password } = req.body;
 
     if (!username || !phone || !password) {
         return res.status(400).json({
-            message: "Missing fields"
+            message: "Заполните все поля"
         });
     }
 
-    // login validation
+    //login validation
     if (!/^[a-zA-Z0-9]+$/.test(username)) {
         return res.status(400).json({
-            message: "Login must contain only letters and numbers"
+            message: "Логин должен содержать только буквы и цифры"
         });
     }
 
-    // phone validation
+    //phone validation
     if (!/^\+?[0-9]+$/.test(phone)) {
         return res.status(400).json({
-            message: "Phone must contain only numbers"
+            message: "Телефон должен содержать только цифры и может начинаться с +"
         });
     }
 
-    // password validation
+    //password validation
     if (
         password.length < 6 ||
         !/[A-Z]/.test(password) ||
         !/[0-9]/.test(password)
     ) {
         return res.status(400).json({
-            message: "Password must contain minimum 6 symbols, 1 capital letter and 1 number"
+            message: "Пароль должен содержать минимум 6 символов, 1 заглавную букву и 1 цифру"
         });
     }
 
@@ -70,7 +97,7 @@ app.post('/register', (req, res) => {
 
     if (exists) {
         return res.status(400).json({
-            message: "User already exists"
+            message: "Такой пользователь уже существует"
         });
     }
 
@@ -83,9 +110,10 @@ app.post('/register', (req, res) => {
     };
 
     users.push(user);
+    saveData();
 
     res.status(201).json({
-        message: "Registered successfully"
+        message: "Регистрация прошла успешно"
     });
 });
 
@@ -95,7 +123,7 @@ app.post('/login', (req, res) => {
 
     if (!phone || !password) {
         return res.status(400).json({
-            message: "Missing fields"
+            message: "Заполните все поля"
         });
     }
 
@@ -105,12 +133,12 @@ app.post('/login', (req, res) => {
 
     if (!user) {
         return res.status(401).json({
-            message: "Invalid phone or password"
+            message: "Неверный номер телефона или пароль"
         });
     }
 
     res.json({
-        message: "Login success",
+        message: "Вход выполнен успешно",
         token: String(user.id),
         user: {
             id: user.id,
@@ -119,18 +147,19 @@ app.post('/login', (req, res) => {
         }
     });
 });
+
 //auth middleware
 function auth(req, res, next) {
     const token = req.headers.authorization;
 
     if (!token) {
-        return res.status(401).json({ message: "No token" });
+        return res.status(401).json({ message: "Нет токена" });
     }
 
     const user = users.find(u => u.id == token);
 
     if (!user) {
-        return res.status(401).json({ message: "Invalid token" });
+        return res.status(401).json({ message: "Неверный токен" });
     }
 
     req.user = user;
@@ -139,7 +168,7 @@ function auth(req, res, next) {
 
 function adminOnly(req, res, next) {
     if (req.user.role !== "admin") {
-        return res.status(403).json({ message: "Admin only" });
+        return res.status(403).json({ message: "Доступ только для администратора" });
     }
 
     next();
@@ -158,7 +187,7 @@ app.get('/bookings/:id', auth, (req, res) => {
     );
 
     if (!booking) {
-        return res.status(404).json({ message: "Not found" });
+        return res.status(404).json({ message: "Бронирование не найдено" });
     }
 
     res.json(booking);
@@ -168,18 +197,18 @@ app.get('/bookings/:id', auth, (req, res) => {
 app.post('/bookings', auth, (req, res) => {
     const { roomName, date, time, duration } = req.body;
 
-    if (
-    isNaN(duration) ||
-    duration <= 0 ||
-    duration > 8
-) {
-    return res.status(400).json({
-        message: "Duration must be between 1 and 8 hours"
-    });
-}
-
     if (!roomName || !date || !time || !duration) {
-        return res.status(400).json({ message: "Missing fields" });
+        return res.status(400).json({ message: "Заполните все поля" });
+    }
+
+    if (
+        isNaN(duration) ||
+        duration <= 0 ||
+        duration > 8
+    ) {
+        return res.status(400).json({
+            message: "Длительность должна быть от 1 до 8 часов"
+        });
     }
 
     const booking = {
@@ -193,6 +222,7 @@ app.post('/bookings', auth, (req, res) => {
     };
 
     bookings.push(booking);
+    saveData();
 
     res.status(201).json(booking);
 });
@@ -204,16 +234,17 @@ app.patch('/bookings/:id', auth, (req, res) => {
     );
 
     if (!booking) {
-        return res.status(404).json({ message: "Not found" });
+        return res.status(404).json({ message: "Бронирование не найдено" });
     }
 
     const { status } = req.body;
 
     if (status !== "active" && status !== "cancelled") {
-        return res.status(400).json({ message: "Status must be active or cancelled" });
+        return res.status(400).json({ message: "Статус должен быть active или cancelled" });
     }
 
     booking.status = status;
+    saveData();
 
     res.json(booking);
 });
@@ -225,58 +256,61 @@ app.delete('/bookings/:id', auth, (req, res) => {
     );
 
     if (index === -1) {
-        return res.status(404).json({ message: "Not found" });
+        return res.status(404).json({ message: "Бронирование не найдено" });
     }
 
     bookings.splice(index, 1);
+    saveData();
 
-    res.json({ message: "Deleted" });
+    res.json({ message: "Бронирование удалено" });
 });
 
-// admin get all bookings
+//admin get all bookings
 app.get('/admin/bookings', auth, adminOnly, (req, res) => {
     const result = bookings.map(booking => {
         const user = users.find(u => u.id === booking.userId);
 
         return {
             ...booking,
-            username: user ? user.username : "Unknown"
+            username: user ? user.username : "Неизвестно"
         };
     });
 
     res.json(result);
 });
 
-// admin update booking status
+//admin update booking status
 app.patch('/admin/bookings/:id', auth, adminOnly, (req, res) => {
     const booking = bookings.find(b => b.id == req.params.id);
 
     if (!booking) {
-        return res.status(404).json({ message: "Not found" });
+        return res.status(404).json({ message: "Бронирование не найдено" });
     }
 
     const { status } = req.body;
 
     if (status !== "active" && status !== "cancelled") {
-        return res.status(400).json({ message: "Status must be active or cancelled" });
+        return res.status(400).json({ message: "Статус должен быть active или cancelled" });
     }
 
     booking.status = status;
+    saveData();
 
     res.json(booking);
 });
 
-// admin delete booking
+//admin delete booking
 app.delete('/admin/bookings/:id', auth, adminOnly, (req, res) => {
     const index = bookings.findIndex(b => b.id == req.params.id);
 
     if (index === -1) {
-        return res.status(404).json({ message: "Not found" });
+        return res.status(404).json({ message: "Бронирование не найдено" });
     }
 
     bookings.splice(index, 1);
+    saveData();
 
-    res.json({ message: "Deleted by admin" });
+    res.json({ message: "Бронирование удалено администратором" });
 });
 
 const PORT = 3000;

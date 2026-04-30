@@ -11,6 +11,10 @@ function UserPage() {
 
   const [bookings, setBookings] = useState([]);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("date");
 
   const [form, setForm] = useState({
     roomName: "",
@@ -35,6 +39,8 @@ function UserPage() {
 
   async function loadBookings() {
     try {
+      setLoading(true);
+
       const res = await fetch(`${API_URL}/bookings`, {
         headers: {
           Authorization: token,
@@ -50,6 +56,8 @@ function UserPage() {
       setBookings(data);
     } catch {
       setMessage("Сервер недоступен");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -61,12 +69,19 @@ function UserPage() {
       return;
     }
 
+    if (form.duration <= 0) {
+      setMessage("Длительность должна быть больше 0");
+      return;
+    }
+
     if (form.duration > 8) {
-    setMessage("Максимальная длительность — 8 часов");
-    return;
+      setMessage("Максимальная длительность — 8 часов");
+      return;
     }
 
     try {
+      setLoading(true);
+
       const res = await fetch(`${API_URL}/bookings`, {
         method: "POST",
         headers: {
@@ -95,28 +110,15 @@ function UserPage() {
       loadBookings();
     } catch {
       setMessage("Ошибка сервера");
-    }
-  }
-
-  async function cancelBooking(id) {
-    try {
-      await fetch(`${API_URL}/bookings/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token,
-        },
-        body: JSON.stringify({ status: "cancelled" }),
-      });
-
-      loadBookings();
-    } catch {
-      setMessage("Ошибка при отмене бронирования");
+    } finally {
+      setLoading(false);
     }
   }
 
   async function deleteBooking(id) {
     try {
+      setLoading(true);
+
       await fetch(`${API_URL}/bookings/${id}`, {
         method: "DELETE",
         headers: {
@@ -127,6 +129,8 @@ function UserPage() {
       loadBookings();
     } catch {
       setMessage("Ошибка при удалении бронирования");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -135,6 +139,26 @@ function UserPage() {
     localStorage.removeItem("user");
     navigate("/");
   }
+
+  const filteredBookings = bookings
+    .filter((booking) =>
+      booking.roomName.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sort === "date") {
+        return new Date(a.date) - new Date(b.date);
+      }
+
+      if (sort === "time") {
+        return a.time.localeCompare(b.time);
+      }
+
+      if (sort === "duration") {
+        return Number(a.duration) - Number(b.duration);
+      }
+
+      return 0;
+    });
 
   return (
     <div className="container">
@@ -158,29 +182,26 @@ function UserPage() {
           <h2>Создать бронирование</h2>
 
           <select
-  value={form.roomName}
-  onChange={(e) => setForm({ ...form, roomName: e.target.value })}
->
-  <option value="">Выберите комнату</option>
-      <option value="Большая комната на 20 мест">
-        Большая комната на 20 мест
-      </option>
-      <option value="Большая комната на 20 мест">
-        Большая комната на 20 мест с проектором
-      </option>
-      <option value="Маленькая комната на 5 мест">
-        Маленькая комната на 5 мест
-      </option>
-      <option value="Маленькая комната на 5 мест с проектором">
-        Маленькая комната на 5 мест с проектором
-      </option>
-      <option value="Средняя комната на 10 мест">
-        Средняя комната на 10 мест
-      </option>
-      <option value="Конференц-зал на 30 мест">
-        Конференц-зал на 30 мест
-      </option>
-    </select>
+            value={form.roomName}
+            onChange={(e) => setForm({ ...form, roomName: e.target.value })}
+          >
+            <option value="">Выберите комнату</option>
+            <option value="Большая комната на 20 мест">
+              Большая комната на 20 мест
+            </option>
+            <option value="Средняя комната на 10 мест">
+              Средняя комната на 10 мест
+            </option>
+            <option value="Маленькая комната на 5 мест">
+              Маленькая комната на 5 мест
+            </option>
+            <option value="Маленькая комната на 5 мест с проектором">
+              Маленькая комната на 5 мест с проектором
+            </option>
+            <option value="Конференц-зал на 30 мест">
+              Конференц-зал на 30 мест
+            </option>
+          </select>
 
           <input
             type="date"
@@ -204,17 +225,36 @@ function UserPage() {
             onChange={(e) => setForm({ ...form, duration: e.target.value })}
           />
 
-          <button>Создать</button>
+          <button disabled={loading}>
+            {loading ? "Загрузка..." : "Создать"}
+          </button>
         </form>
 
         <div>
           <h2>Список бронирований</h2>
 
-          {bookings.length === 0 ? (
-            <div className="empty">Пока нет бронирований</div>
+          <div className="controls">
+            <input
+              type="text"
+              placeholder="Поиск по комнате"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="date">Сортировка по дате</option>
+              <option value="time">Сортировка по времени</option>
+              <option value="duration">Сортировка по длительности</option>
+            </select>
+          </div>
+
+          {loading && <p className="loading">Загрузка данных...</p>}
+
+          {!loading && filteredBookings.length === 0 ? (
+            <div className="empty">Бронирований не найдено</div>
           ) : (
             <div className="list">
-              {bookings.map((booking) => (
+              {filteredBookings.map((booking) => (
                 <div className="booking" key={booking.id}>
                   <h3>{booking.roomName}</h3>
 
@@ -228,10 +268,10 @@ function UserPage() {
                   </p>
 
                   <div className="booking-actions">
-
                     <button
                       className="danger"
                       onClick={() => deleteBooking(booking.id)}
+                      disabled={loading}
                     >
                       Удалить
                     </button>
